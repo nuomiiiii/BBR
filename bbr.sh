@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# TCP网络调优
+#                           TCP 底层网络与并发调优
 # ==============================================================================
 
 set -euo pipefail
@@ -85,15 +85,14 @@ net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
 # 开启 MTU 探测，防止复杂国际路由中的 ICMP 黑洞
 net.ipv4.tcp_mtu_probing = 1
-# 开启显式拥塞通知 (主动抗丢包)
-net.ipv4.tcp_ecn = 2
+net.ipv4.tcp_ecn = 0
 
 # 3.动态 TCP 缓冲区分配
 net.core.rmem_max = ${tcp_max}
 net.core.wmem_max = ${tcp_max}
 net.ipv4.tcp_rmem = 4096 87380 ${tcp_max}
 net.ipv4.tcp_wmem = 4096 16384 ${tcp_max}
-net.ipv4.tcp_adv_win_scale = -2
+net.ipv4.tcp_adv_win_scale = 1
 
 # 4.高并发连接池扩容
 net.core.somaxconn = 32768
@@ -108,18 +107,17 @@ net.ipv4.tcp_keepalive_time = 300
 net.ipv4.tcp_keepalive_probes = 5
 net.ipv4.tcp_keepalive_intvl = 15
 net.ipv4.tcp_max_tw_buckets = 65536
-net.ipv4.ip_local_port_range = 10000 65535
+net.ipv4.ip_local_port_range = 10000 65000
 
 # 6.Web/代理 极速响应优化
 # 禁用空闲后的慢启动，让持久连接保持满速
 net.ipv4.tcp_slow_start_after_idle = 0
-# 限制 TCP 发送队列的未发送字节数，大幅降低延迟抖动
-net.ipv4.tcp_notsent_lowat = 131072
+
 EOF
 
     # 重新加载 sysctl 配置使其立刻生效
     sysctl --system >/dev/null 2>&1
-    print_green "TCP 调优完成\n"
+    print_green "TCP 底层网络与并发调优\n"
 }
 
 # 执行主函数
