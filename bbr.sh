@@ -117,7 +117,7 @@ EOF
 
     # 重新加载 sysctl 配置使其立刻生效
     sysctl --system >/dev/null 2>&1
-    print_green "TCP 底层网络与并发调优\n"
+    print_green "TCP 底层网络与并发调优完成\n"
 }
 
 # 执行主函数
