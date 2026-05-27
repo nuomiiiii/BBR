@@ -65,7 +65,7 @@ function opt_bbr() {
 
         cat <<EOF > ${SYSCTL_CONF}
 # ==========================================
-# 极限纯 TCP 网络底层压榨 (大并发与防断流调优)
+# 极限TCP网络底层压榨 (大并发与防断流调优)
 # ==========================================
 
 # 1. 文件描述符上限解锁 
@@ -100,7 +100,7 @@ net.ipv4.tcp_keepalive_time = 300
 net.ipv4.tcp_keepalive_probes = 5
 net.ipv4.tcp_keepalive_intvl = 15
 net.ipv4.tcp_max_tw_buckets = 65536
-net.ipv4.ip_local_port_range = 10000 65000
+net.ipv4.ip_local_port_range = 10000 65535
 
 # 6. Web/代理 极速响应优化
 # 禁用空闲后的慢启动，让持久连接保持满速
@@ -110,7 +110,7 @@ net.ipv4.tcp_notsent_lowat = 131072
 EOF
 
         sysctl --system >/dev/null 2>&1
-        print_green "纯 TCP 底层协议栈调优完成，配置文件已写入 ${SYSCTL_CONF}！\n"
+        print_green "TCP调优完成，配置文件已写入 ${SYSCTL_CONF}！\n"
     else
         print_warn "检测到 ${SYSCTL_CONF} 已存在，跳过网络配置写入。\n"
     fi
