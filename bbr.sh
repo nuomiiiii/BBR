@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-#                           TCP 底层网络与并发调优
+#                      TCP 底层网络与并发调优 V1.2 20260528
 # ==============================================================================
 
 set -euo pipefail
@@ -49,15 +49,29 @@ function opt_bbr() {
     fi
 
     # ==========================================
-    # 3.强制覆盖与TCP调优
+    # 3.0 备份并清空 /etc/sysctl.conf，避免最后加载覆盖本脚本配置
     # ==========================================
-    local SYSCTL_CONF="/etc/sysctl.d/99-bbr.conf"
+    local SYSCTL_MAIN="/etc/sysctl.conf"
+    local SYSCTL_MAIN_BAK="/etc/sysctl.conf.bak.$(date +%Y%m%d%H%M%S)"
+
+    if [ -f "${SYSCTL_MAIN}" ]; then
+        print_warn "[-] 正在备份 /etc/sysctl.conf 到 ${SYSCTL_MAIN_BAK} ...\n"
+        cp -a "${SYSCTL_MAIN}" "${SYSCTL_MAIN_BAK}"
+        : > "${SYSCTL_MAIN}"
+        print_green "  -> /etc/sysctl.conf 已备份并清空，避免覆盖 TCP/BBR 配置。\n"
+    else
+        print_warn "[-] 未找到 /etc/sysctl.conf，正在创建空文件...\n"
+        touch "${SYSCTL_MAIN}"
+    fi
+
+    local SYSCTL_CONF="/etc/sysctl.d/zz-tcp-bbr.conf"
     
     # 【修改点】：检测到旧文件直接强制删除
     if [ -f "${SYSCTL_CONF}" ]; then
         print_warn "[-] 检测到旧的 ${SYSCTL_CONF} 配置文件，正在清理...\n"
         rm -f "${SYSCTL_CONF}"
     fi
+   
 
     print_info "[+] 正在动态计算缓冲区并强制注入纯 TCP 拥塞与并发优化...\n"
     
