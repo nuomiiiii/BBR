@@ -112,8 +112,7 @@ net.ipv4.ip_local_port_range = 10000 65535
 # 6.3X-UI 极速响应优化
 # 禁用空闲后的慢启动，让持久连接保持满速
 net.ipv4.tcp_slow_start_after_idle = 0
-# 控制发送队列未发送数据的下限，降低队头阻塞
-net.ipv4.tcp_notsent_lowat = 16384
+
 
 EOF
 
