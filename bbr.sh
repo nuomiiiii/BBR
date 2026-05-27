@@ -107,7 +107,7 @@ net.ipv4.tcp_keepalive_time = 300
 net.ipv4.tcp_keepalive_probes = 5
 net.ipv4.tcp_keepalive_intvl = 15
 net.ipv4.tcp_max_tw_buckets = 65536
-net.ipv4.ip_local_port_range = 10000 65000
+net.ipv4.ip_local_port_range = 10000 65535
 
 # 6.Web/代理 极速响应优化
 # 禁用空闲后的慢启动，让持久连接保持满速
