@@ -329,9 +329,9 @@ sysctl --system >/dev/null 2>&1
 # 输出
 # ==============================================================================
 echo ""
-print_green "╔══════════════════════════════════════════╗\n"
-print_green "║               调优完成，当前生效参数     ║\n"
-print_green "╚══════════════════════════════════════════╝\n"
+print_green "  ══════════════════════════════════════════\n"
+print_green "            调优完成，当前生效参数          \n"
+print_green "  ══════════════════════════════════════════\n"
 printf "  %-20s %s\n" "拥塞控制:"  "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)"
 printf "  %-20s %s\n" "队列策略:"  "$(sysctl -n net.core.default_qdisc 2>/dev/null)"
 printf "  %-20s %s bytes (%sMB)\n" "缓冲区上限:" "$(sysctl -n net.core.rmem_max 2>/dev/null)" "${TCP_MAX_MB}"
