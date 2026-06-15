@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
-#          TCP & UDP/QUIC 底层网络与并发全场景调优 V3.9.2
-#                                                            2026.6.15
+#          TCP & UDP/QUIC & Emby流媒体 全场景全兼容调优 V3.9.3
+#                                                              2026.6.15
 # ==============================================================================
 
 set -euo pipefail
@@ -60,7 +60,7 @@ function read_int() {
 # ==============================================================================
 echo ""
 print_info "  ┌─────────────────────────────────────────────────────┐"
-print_info "  │             TCP/UDP 调优  —  请输入服务器信息       │"
+print_info "  │             TCP/UDP/Emby 调优                       │"
 print_info "  └─────────────────────────────────────────────────────┘"
 echo ""
 
@@ -112,7 +112,7 @@ echo ""
 print_line
 
 # ==============================================================================
-# 参数确认展示
+# 参数展示确认
 # ==============================================================================
 echo ""
 print_info "  ┌─────────────────────────────────────────────────────┐"
@@ -136,7 +136,7 @@ echo ""
 # ==============================================================================
 print_info "[*] 正在计算最优参数..."
 
-# 1. 精准计算 BDP 字节数（引入 1.8 倍缓冲区余量）
+# 1. 精准计算 BDP 字节数（采用 1.8 倍黄金缓冲区余量，兼顾流媒体抗丢包与多线程高平滑度）
 BDP_BYTES=$(( BW_MBPS * 1000000 / 8 * RTT_MS / 1000 ))
 BDP_WITH_RESERVE=$(( BDP_BYTES * 18 / 10 ))
 
@@ -147,13 +147,13 @@ SINGLE_CONN_MEM_LIMIT=$(( MEM_BYTES * 4 / 100 ))
 # 3. 动态计算 TCP_MAX（取 BDP 需求和内存单流限制的最小值）
 if [ "$BDP_WITH_RESERVE" -le "$SINGLE_CONN_MEM_LIMIT" ]; then
     TCP_MAX=$BDP_WITH_RESERVE
-    LIMIT_REASON="BDP 需求 + 50% 余量主导"
+    LIMIT_REASON="BDP 需求 + 80% 余量主导"
 else
     TCP_MAX=$SINGLE_CONN_MEM_LIMIT
     LIMIT_REASON="单连接系统内存安全线限制"
 fi
 
-# 确保最低不低于 16MB，最高放宽到 256MB 
+# 确保最低不低于 16MB，天花板放宽到 256MB 
 [ "$TCP_MAX" -lt 16777216 ] && TCP_MAX=16777216
 [ "$TCP_MAX" -gt 268435456 ] && TCP_MAX=268435456
 
@@ -185,7 +185,7 @@ print_info "  │                          计算结果                        �
 print_info "  ├──────────────────────────────────────────────────────────┤"
 printf     "  │  BDP 理论需求:    %-3s MB  (= %-4s Mbps × %-3s ms / 8)    │\n" "$BDP_CALC_MB" "$BW_MBPS" "$RTT_MS"
 printf     "  │  单流内存安全线:  %-3s MB  (物理内存 %-4s MB × 4%%)        │\n" "$MEM_BUF_MB" "$TOTAL_MEM"
-printf     "  │  最终缓冲区上限:  %-3s MB  ← %-26s │\n" "$TCP_MAX_MB" "BDP 需求 + 80% 余量主导"
+printf     "  │  最终缓冲区上限:  %-3s MB  ← %-26s │\n" "$TCP_MAX_MB" "$LIMIT_REASON"
 print_info "  └──────────────────────────────────────────────────────────┘"
 echo ""
 
@@ -236,7 +236,7 @@ else
 fi
 
 # ==============================================================================
-# 写入 sysctl 优化配置
+# 真正写入 sysctl 优化配置
 # ==============================================================================
 SYSCTL_CONF="/etc/sysctl.d/zz-tcp-bbr.conf"
 [ -f "${SYSCTL_CONF}" ] && rm -f "${SYSCTL_CONF}"
@@ -253,14 +253,17 @@ fs.file-max = 1048576
 fs.nr_open  = 1048576
 net.core.default_qdisc          = fq
 net.ipv4.tcp_congestion_control = bbr
-net.ipv4.tcp_mtu_probing        = 1
 net.ipv4.tcp_ecn                = 0
 
-# ── 读写分离优化：VPS 主动推送数据，wmem 决定发送上限，rmem 按需精简 ──
+# ── 规避 Emby 客户端 MTU 震荡死锁 ──
+net.ipv4.tcp_mtu_probing        = 0
+
+# ── 读写分离优化：服务器作为发送方（吐视频/提供下载），wmem全力冲刺，rmem精简省内存 ──
+# 恢复 wmem 第二个值为原生最稳健的 16KB，防止 BBR 对 Emby 小包高频切片流盲目踩刹车
 net.core.rmem_max               = $(( TCP_MAX / 2 ))
 net.core.wmem_max               = ${TCP_MAX}
 net.ipv4.tcp_rmem               = 4096 131072 $(( TCP_MAX / 2 ))
-net.ipv4.tcp_wmem               = 4096 65536 ${TCP_MAX}
+net.ipv4.tcp_wmem               = 4096 16384 ${TCP_MAX}
 net.ipv4.tcp_adv_win_scale      = 1
 net.ipv4.tcp_mem                = ${TM_LOW} ${TM_MID} ${TM_HIGH}
 
@@ -269,12 +272,12 @@ net.core.somaxconn              = ${BACKLOG}
 net.core.netdev_max_backlog     = ${BACKLOG}
 net.ipv4.tcp_max_syn_backlog    = ${BACKLOG}
 
-# ── 现代高码率 UDP/QUIC (落地机向视频源拉取HTTP3视频) 优化支持 ──
-# 落地机从YouTube拉取UDP视频流是接收方，所以接收默认调大
+# ── 现代高码率 UDP/QUIC (落地机拉取HTTP3源视频) 优化支持 ──
+# 调高 udp_*_min 基准线至 16KB，彻底消除高带宽万兆网卡在代理内核转发时的粘包和假死
 net.core.rmem_default           = 1048576
 net.core.wmem_default           = 524288
-net.ipv4.udp_rmem_min           = 8192
-net.ipv4.udp_wmem_min           = 8192
+net.ipv4.udp_rmem_min           = 16384
+net.ipv4.udp_wmem_min           = 16384
 
 # ── 连接复用与孤儿套接字动态防爆 ──
 net.ipv4.tcp_fastopen           = 3
