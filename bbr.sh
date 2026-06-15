@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
-#          TCP & UDP/QUIC & Emby流媒体 全场景全兼容调优 V3.9.4
-#                                                              2026.6.15
+#          TCP & UDP/QUIC & Emby流媒体 调优 V4.0
+#                                                            2026.6.15
 # ==============================================================================
 
 set -euo pipefail
@@ -60,7 +60,7 @@ function read_int() {
 # ==============================================================================
 echo ""
 print_info "  ┌─────────────────────────────────────────────────────┐"
-print_info "  │             TCP/UDP/Emby 调优       —  V3.9.4       │"
+print_info "  │           TCP/UDP/Hills/Emby 调优  —  终极完全体     │"
 print_info "  └─────────────────────────────────────────────────────┘"
 echo ""
 
@@ -136,7 +136,7 @@ echo ""
 # ==============================================================================
 print_info "[*] 正在计算最优参数..."
 
-# 1. 精准计算 BDP 字节数（采用 1.8 倍黄金缓冲区余量，兼顾流媒体抗丢包与多线程高平滑度）
+# 1. 精准计算 BDP 字节数（采用 1.8 倍黄金武学余量，完美兼顾 Hills 多路复用与油管爆发力）
 BDP_BYTES=$(( BW_MBPS * 1000000 / 8 * RTT_MS / 1000 ))
 BDP_WITH_RESERVE=$(( BDP_BYTES * 18 / 10 ))
 
@@ -167,7 +167,7 @@ TM_HIGH=$(( MEM_BYTES * 25 / 100 / PAGE ))
 TM_MID=$(( MEM_BYTES * 18 / 100 / PAGE ))
 TM_LOW=$(( MEM_BYTES * 12 / 100 / PAGE ))
 
-# 5. 根据内存动态调节并发队列深度与孤儿套接字限制
+# 5. 根据内存 dynamic 调节并发队列深度与孤儿套接字限制
 if [ "$TOTAL_MEM" -le 1024 ]; then
     BACKLOG=16384
     MAX_ORPHANS=16384
@@ -253,13 +253,10 @@ fs.file-max = 1048576
 fs.nr_open  = 1048576
 net.core.default_qdisc          = fq
 net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_mtu_probing        = 0
 net.ipv4.tcp_ecn                = 0
 
-# ── 规避 Emby 客户端 MTU 震荡死锁 ──
-net.ipv4.tcp_mtu_probing        = 0
-
-# ── 读写分离优化：服务器作为发送方（吐视频/提供下载），wmem全力冲刺，rmem精简省内存 ──
-# 恢复 wmem 第二个值为原生最稳健的 16KB，防止 BBR 对 Emby 小包高频切片流盲目踩刹车
+# ── TCP 读写分离分离优化 ──
 net.core.rmem_max               = $(( TCP_MAX / 2 ))
 net.core.wmem_max               = ${TCP_MAX}
 net.ipv4.tcp_rmem               = 4096 131072 $(( TCP_MAX / 2 ))
@@ -267,17 +264,18 @@ net.ipv4.tcp_wmem               = 4096 16384 ${TCP_MAX}
 net.ipv4.tcp_adv_win_scale      = 1
 net.ipv4.tcp_mem                = ${TM_LOW} ${TM_MID} ${TM_HIGH}
 
+# ── 全局核心默认启动资金（退回最稳健的 256KB 附近） ──
+net.core.rmem_default           = 262144
+net.core.wmem_default           = 262144
+
+# ── 现代高码率 UDP/QUIC (油管 HTTP3 极速爆发) 专门解耦优化支持 ──
+net.ipv4.udp_rmem_min           = 2097152
+net.ipv4.udp_wmem_min           = 1048576
+
 # ── 队列与并发能力 ──
 net.core.somaxconn              = ${BACKLOG}
 net.core.netdev_max_backlog     = ${BACKLOG}
 net.ipv4.tcp_max_syn_backlog    = ${BACKLOG}
-
-# ── 现代高码率 UDP/QUIC (落地机拉取HTTP3源视频) 优化支持 ──
-# 调高 udp_*_min 基准线至 16KB，彻底消除高带宽万兆网卡在代理内核转发时的粘包和假死
-net.core.rmem_default           = 2097152
-net.core.wmem_default           = 2097152
-net.ipv4.udp_rmem_min           = 16384
-net.ipv4.udp_wmem_min           = 16384
 
 # ── 连接复用与孤儿套接字动态防爆 ──
 net.ipv4.tcp_fastopen           = 3
